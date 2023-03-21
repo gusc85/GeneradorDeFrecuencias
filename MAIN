@@ -1,0 +1,399 @@
+; ------------------------------------------------------------------------------
+; DATOS Y ENCABEZADO
+;-------------------------------------------------------------------------------
+    
+; Archivo:			 GeneradorDeFunciones.s
+; Dispositivo:			 PIC16F887
+; Autor:			 GUSTABO CÓRDOVA 
+; Compilador:			 pic-as (v2.30), MPLABX v5.40
+; Programa:		         GeneradorDeFunciones
+
+    PROCESSOR 16F887
+    #include <xc.inc>
+    
+; ------------------------------------------------------------------------------
+; CONFIGURACIÓN DEL PIC
+;-------------------------------------------------------------------------------
+
+; CONFIG 1
+  CONFIG FOSC = INTRC_NOCLKOUT	    // Oscilador interno
+  CONFIG WDTE = OFF		    // WDT disabled (reinicio repetitivo de pic)
+  CONFIG PWRTE = ON		    // PWRT enabled (espera de 72ms al iniciar)
+  CONFIG MCLRE = OFF		    // El pin de MCLR se utiliza como I/O
+  CONFIG CP = OFF		    // Sin protección de código
+  CONFIG CPD = OFF		    // Sin protección de datos
+  
+  CONFIG BOREN = OFF		    // Sin reinicio cuando el voltaje de alimentación baja de 4V
+  CONFIG IESO = OFF		    // Reinicio sin cambio de reloj de interno a externo
+  CONFIG FCMEN = OFF		    // Cambio de reloj externo a interno en caso de fallo
+  CONFIG LVP = ON		    // Programación en bajo voltaje permitida
+  
+; CONFIG 2
+  CONFIG WRT = OFF		    // Protección de autoescritura por el programa desactivada
+  CONFIG BOR4V = BOR40V		    // Reinicio abajo de 4V, (BOR21V-2.1V)
+    
+; ------------------------------------------------------------------------------
+; VARIABLES
+;-------------------------------------------------------------------------------
+  
+    PSECT udata_bank0
+    
+	W_TEMP:	      DS 1  ; variables temporales
+	STATUS_TEMP:  DS 1  ; variables temporales
+    
+	ACUMULADO:    DS 1
+    	CUENTA:	      DS 1
+    	FREQ:	      DS 1
+	DISP:	      DS 4
+;	FLAGS:	      DS 1
+;	OINT:	      DS 1
+;	MAX:	      DS 1
+;	MIN:	      DS 1
+
+    
+    
+; ------------------------------------------------------------------------------
+; VECTOR RESET
+;-------------------------------------------------------------------------------
+    PSECT resVect, class = CODE, abs, delta = 2 
+    ORG 00h 
+    
+    ResVect:
+    PAGESEL MAIN
+    goto MAIN
+
+  
+; ------------------------------------------------------------------------------
+; INTERRUPCIONES
+;-------------------------------------------------------------------------------
+    ORG 004h
+    
+PUSH:	
+    movwf W_TEMP		;Guardar en variable temporal
+    swapf STATUS, W		;Guardar en W sin afectar banderas del status
+    movwf STATUS_TEMP		;Guardar en variable temporal
+    
+ISR:		
+    btfsc   RBIF
+    call    int_iocb
+    btfsc   T0IF
+    call    T0_int
+    
+POP:
+    swapf STATUS_TEMP, W	;Regresar al valor original
+    movwf STATUS		
+    swapf W_TEMP, F
+    swapf W_TEMP, W	    
+    retfie			;Regresar de la interrupción
+    
+T0_int:
+    call resetTMR0          
+    btfss PORTB, 0 
+    call OndaCuadrada
+    btfss PORTB, 1
+    call OndaTriangular
+    btfss PORTB, 2
+    call OndaSinusoidal
+    return
+	
+int_iocb:
+    BANKSEL PORTA
+    btfsc   PORTB, 4
+    call    Aumentar
+    btfsc   PORTB, 5
+    call    Decrementar
+    bcf	    RBIF
+    RETURN 
+    
+OndaCuadrada:
+    incf CUENTA
+    movf CUENTA, W
+    call TablaCuadrada
+    movwf PORTA
+    return
+    
+OndaTriangular:
+    incf CUENTA
+    movf CUENTA,W
+    call TablaTriangular
+    movwf PORTA
+    return
+   
+OndaSinusoidal:
+    incf CUENTA
+    movf CUENTA, W
+    call TablaSin
+    movwf PORTA
+    return
+
+; ------------------------------------------------------------------------------
+; TABLAS
+;-------------------------------------------------------------------------------
+
+PSECT code, delta=2, abs
+ORG 0100h
+ 
+TablaSin:
+    clrf PCLATH
+    bsf	 PCLATH, 0       
+    andlw 0x1f
+    addwf   PCL		   	    
+    retlw   0	    
+    retlw   2	    
+    retlw   10	    
+    retlw   21    
+    retlw   37	    
+    retlw   57	    
+    retlw   79	    
+    retlw   103
+    retlw   128	        
+    retlw   152	    
+    retlw   176	    	    
+    retlw   198	    
+    retlw   218	    
+    retlw   234	    
+    retlw   245	    
+    retlw   253	    
+    retlw   255	    
+    retlw   253	    
+    retlw   245	    
+    retlw   234    
+    retlw   218	    
+    retlw   198	    
+    retlw   176	    
+    retlw   152
+    retlw   128	        
+    retlw   103	    
+    retlw   79	    	    
+    retlw   57	    
+    retlw   37	    
+    retlw   21	    
+    retlw   10	    
+    retlw   2
+    return
+
+TablaTriangular:
+    clrf    PCLATH
+    bsf	    PCLATH, 0         
+    andlw   0x1f
+    addwf   PCL		   
+    retlw   16	        
+    retlw   32	    
+    retlw   48	    	    
+    retlw   64	    
+    retlw   80	    
+    retlw   96	    
+    retlw   112	    
+    retlw   128	    
+    retlw   143	    
+    retlw   159	    
+    retlw   175	    
+    retlw   191    
+    retlw   207	    
+    retlw   223	    
+    retlw   239	    
+    retlw   255
+    retlw   239	        
+    retlw   223	    
+    retlw   207	    	    
+    retlw   191	    
+    retlw   175	    
+    retlw   159	    
+    retlw   143	    
+    retlw   128	    
+    retlw   112	    
+    retlw   96	    
+    retlw   80	    
+    retlw   64    
+    retlw   48	    
+    retlw   32	    
+    retlw   16	    
+    retlw   0
+    return 
+        
+TablaCuadrada:
+    clrf    PCLATH
+    bsf	    PCLATH, 0         
+    andlw   0x0f
+    addwf   PCL		  
+    retlw   0
+    retlw   0
+    retlw   0
+    retlw   0
+    retlw   0
+    retlw   0
+    retlw   0
+    retlw   0
+    retlw   255
+    retlw   255
+    retlw   255
+    retlw   255
+    retlw   255
+    retlw   255
+    retlw   255
+    retlw   255
+    return 
+    
+TablaFreq:
+    clrf    PCLATH
+    bsf	    PCLATH, 0
+    andlw   0x0f
+    addwf   PCL
+    retlw   7
+    retlw   21
+    retlw   34
+    retlw   47
+    retlw   59
+    retlw   70
+    retlw   81
+    retlw   91
+    retlw   100
+    retlw   109
+    retlw   118
+    retlw   126
+    retlw   133
+    retlw   140
+    retlw   147
+    retlw   153
+    return
+   
+; ------------------------------------------------------------------------------
+; MAIN
+;-------------------------------------------------------------------------------
+MAIN:
+    banksel ANSEL	; Se configuran los pines como digitales
+    clrf    ANSEL	
+    clrf    ANSELH
+    
+    banksel TRISA	
+    clrf    TRISA
+    
+    banksel TRISE
+    clrf    TRISE
+   
+    ; Se configura el Puerto B como entrada (pushes)
+    bsf TRISB, 0		    ; Cuadrada
+    bsf TRISB, 1		    ; Triangular
+    bsf TRISB, 2		    ; Sinusoidal
+    bsf TRISB, 3		    ; Hz
+    bsf TRISB, 4		    ; kHz
+    bsf TRISB, 5		    ; Aumentar
+    bsf TRISB, 6		    ; Decrementar
+
+    bcf OPTION_REG, 7
+    bsf WPUB, 0
+    bsf WPUB, 1
+    bsf WPUB, 2
+    bsf WPUB, 3
+    bsf WPUB, 4
+    bsf WPUB, 5
+    bsf WPUB, 6
+    
+    BANKSEL OSCCON		    
+    bcf OSCCON, 3		    ; Se configura el oscilador interno a 4Mhz
+    bcf OSCCON, 4
+    bsf OSCCON, 5
+    bsf OSCCON, 6
+	
+    banksel TRISA
+    bsf IOCB, 0			 
+    bsf IOCB, 1			    
+    bsf IOCB, 2			   
+    bsf IOCB, 3			   
+    bsf IOCB, 4			   
+    bsf IOCB, 5			   
+    bsf IOCB, 6			 
+   
+    banksel PORTA
+    movf PORTB, W
+    bcf RBIF
+	
+    call int_enable
+    call TM0
+
+    banksel PORTA	
+    clrf PORTA
+    clrf PORTB
+    clrf PORTD
+    clrf PORTC
+    
+    BANKSEL TRISA	    ; Selecciona el banco donde está TRISA
+    clrf    TRISA           ; Indica que los pines de los puertos A, C, D y E son salidas.
+    clrf    TRISC
+    clrf    TRISD
+    clrf    TRISE
+    
+    clrf CUENTA			 
+    clrf FREQ
+    clrf ACUMULADO
+
+; ------------------------------------------------------------------------------
+; LOOP
+;-------------------------------------------------------------------------------
+    
+LOOP:
+        BANKSEL PORTB       ; Selecciona el banco de registro del PORTB
+        BTFSC   PORTB, 3    ; Comprueba si el botón está presionado
+        call    Hz	    ; Salta a la etiqueta Hz si lo está
+	BTFSC   PORTB, 4    ; Comprueba si el botón está presionado
+        call    kHz	    ; Salta a la etiqueta kHz si lo está
+	GOTO    LOOP	  
+	
+	
+; ------------------------------------------------------------------------------
+; SUBRITUNAS ENLAZADAS A FUNCIONES PRINCIPALES
+;-------------------------------------------------------------------------------
+	     
+   int_enable:		; Se encarga de habilitar cualquier interrupción que se encuentre en el PIC
+    bsf GIE			
+    bsf RBIE
+    bcf RBIF
+    bsf T0IE
+    bcf T0IF
+    return
+    
+    Hz:
+    BANKSEL PORTE       ; Selecciona el banco de registro del PORTE
+    BSF     PORTE, 1    ; Enciende el LED en el pin 0 del PORTE
+    BCF     PORTE, 0
+    return 
+    
+    kHz: 
+    BANKSEL PORTE       ; Selecciona el banco de registro del PORTE
+    BSF     PORTE, 0    ; Enciende el LED en el pin 1 del PORTE
+    BCF     PORTE, 1
+    return
+   
+    Aumentar:
+    incf    FREQ
+    movf    FREQ, W
+    call    TablaFreq
+    movf    ACUMULADO
+    return
+    
+    Decrementar:
+    decf    FREQ
+    movf    FREQ, W
+    call    TablaFreq
+    movf    ACUMULADO
+    return
+    
+    TM0:
+    BANKSEL OPTION_REG
+    bcf	    T0CS
+    bcf	    T0SE		   
+    bcf	    PSA
+    bcf	    PS2
+    bsf	    PS1
+    bcf	    PS0      
+    BANKSEL PORTA
+    return
+	
+    resetTMR0:
+    movf    ACUMULADO, W
+    movwf   TMR0	    ; Se carga la info el TMR0 para reinicar el proceso indicado
+    bcf	    T0IF  
+    return
+    
+END
+
